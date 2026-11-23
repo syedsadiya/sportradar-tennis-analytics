@@ -44,7 +44,7 @@ REPO_ROOT = CURRENT_DIR.parent if CURRENT_DIR.name.startswith("role") else CURRE
 load_dotenv(REPO_ROOT / ".env")
 load_dotenv(CURRENT_DIR / ".env")
 
-DEFAULT_DB_URL = "mysql+pymysql://root:password@localhost:3306/tennis_analytics"
+DEFAULT_DB_URL = "mysql+pymysql://root:root@localhost:3306/sportradar_tennis"
 
 
 def _build_engine(db_url: Optional[str] = None) -> Engine:

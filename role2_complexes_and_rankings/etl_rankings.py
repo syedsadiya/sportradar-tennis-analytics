@@ -44,7 +44,7 @@ load_dotenv(REPO_ROOT / ".env")
 load_dotenv(CURRENT_DIR / ".env")
 
 API_ENDPOINT = "https://api.sportradar.com/tennis/trial/v3/en/double_competitors_rankings.json"
-DEFAULT_DB_URL = "mysql+pymysql://root:password@localhost:3306/tennis_analytics"
+DEFAULT_DB_URL = "mysql+pymysql://root:root@localhost:3306/sportradar_tennis"
 
 
 def get_database_engine(db_url: Optional[str] = None) -> Engine:

@@ -56,7 +56,7 @@ except ImportError:
     from etl_rankings import run_rankings_etl  # type: ignore
 
 RATE_LIMIT_SLEEP_SECONDS = float(os.getenv("RATE_LIMIT_SLEEP", "1.5"))
-DEFAULT_DB_URL = "mysql+pymysql://root:password@localhost:3306/tennis_analytics"
+DEFAULT_DB_URL = "mysql+pymysql://root:root@localhost:3306/sportradar_tennis"
 
 
 def run_pipeline() -> Dict[str, Any]:
