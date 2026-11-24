@@ -1,6 +1,6 @@
 # 🎾 Game Analytics: Unlocking Tennis Data with SportRadar API
 
-An enterprise-grade, end-to-end tennis intelligence and game analytics platform built with **Python 3.11+**, **MySQL 8.0**, **SQLAlchemy**, **Sportradar Tennis v3 API**, and an interactive **Streamlit** analytical dashboard.
+An enterprise-grade, end-to-end tennis intelligence and game analytics platform built with **Python 3.10+**, **SQLite** (with optional MySQL support), **SQLAlchemy**, **Sportradar Tennis v3 API**, and an interactive **Streamlit** analytical dashboard.
 
 ---
 
@@ -354,8 +354,8 @@ The analytical web app (`role3_sql_and_core_app/app.py`) provides a responsive, 
 ## 7. Installation & Quickstart Guide
 
 ### Prerequisites
-- Python 3.10+ (Tested on Python 3.11)
-- MySQL 8.0+ (Local service or Docker container)
+- Python 3.10+
+- No database installation required for the SQLite demo
 
 ### Step 1: Clone & Configure Environment
 ```bash
@@ -368,35 +368,19 @@ cp .env.example .env
 
 Edit `.env` to specify your database connection and Sportradar API key:
 ```env
-SPORTRADAR_API_KEY=your_sportradar_v3_api_key_here
+SPORTRADAR_API_KEY=offline_mode
 DATABASE_URL=mysql+pymysql://root:password@localhost:3306/tennis_analytics
 RATE_LIMIT_SLEEP=1.5
 ```
-*(Note: If you leave `SPORTRADAR_API_KEY` blank, the pipeline automatically runs using the provided sample JSON payloads in `data/raw/`)*.
+*(Note: `offline_mode` loads the provided sample JSON payloads from `data/raw/`; no API key or Docker is required.)*
 
 ### Step 2: Install Python Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### Step 3: Initialize Database Schema
-If running MySQL locally or in Docker:
-```bash
-# Start MySQL in Docker (optional)
-docker run -d --name tennis_mysql -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=tennis_analytics -p 3306:3306 mysql:8.0
-
-# Apply the master schema DDL
-python -c "
-import pymysql
-conn = pymysql.connect(host='127.0.0.1', port=3306, user='root', password='password', client_flag=pymysql.constants.CLIENT.MULTI_STATEMENTS)
-with conn.cursor() as cur:
-    with open('role1_database_and_competitions/schema.sql', 'r', encoding='utf-8') as f:
-        cur.execute(f.read())
-conn.commit()
-conn.close()
-print('Schema successfully applied!')
-"
-```
+### Step 3: Initialize the SQLite Database
+The master ETL pipeline creates `data/tennis.db` and all required tables automatically.
 
 ### Step 4: Run the Master ETL Pipeline
 ```bash

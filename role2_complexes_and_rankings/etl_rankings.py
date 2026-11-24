@@ -44,7 +44,7 @@ load_dotenv(REPO_ROOT / ".env")
 load_dotenv(CURRENT_DIR / ".env")
 
 API_ENDPOINT = "https://api.sportradar.com/tennis/trial/v3/en/double_competitors_rankings.json"
-DEFAULT_DB_URL = "mysql+pymysql://root:root@localhost:3306/sportradar_tennis"
+DEFAULT_DB_URL = "sqlite:///data/tennis.db"
 
 
 def get_database_engine(db_url: Optional[str] = None) -> Engine:
@@ -81,7 +81,7 @@ def fetch_rankings_data(
     key = api_key or os.getenv("SPORTRADAR_API_KEY", "").strip()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    if not key or key == "your_sportradar_api_key_here":
+    if not key or key in ("your_sportradar_api_key_here", "offline_mode"):
         logger.info("No active Sportradar API key found. Attempting to load cached rankings data.")
         return load_cached_raw_data()
 
@@ -244,7 +244,16 @@ def load_rankings_to_db(
     """
     summary = {"competitors_processed": len(competitors), "rankings_processed": len(rankings)}
 
+    sqlite_engine = engine.dialect.name == "sqlite"
     competitor_upsert_sql = text("""
+        INSERT INTO competitors (competitor_id, name, country, country_code, abbreviation)
+        VALUES (:competitor_id, :name, :country, :country_code, :abbreviation)
+        ON CONFLICT(competitor_id) DO UPDATE SET
+            name = excluded.name,
+            country = excluded.country,
+            country_code = excluded.country_code,
+            abbreviation = excluded.abbreviation;
+    """) if sqlite_engine else text("""
         INSERT INTO competitors (competitor_id, name, country, country_code, abbreviation)
         VALUES (:competitor_id, :name, :country, :country_code, :abbreviation)
         ON DUPLICATE KEY UPDATE
@@ -255,6 +264,14 @@ def load_rankings_to_db(
     """)
 
     ranking_upsert_sql = text("""
+        INSERT INTO competitor_rankings (`rank`, movement, points, competitions_played, competitor_id)
+        VALUES (:rank, :movement, :points, :competitions_played, :competitor_id)
+        ON CONFLICT(competitor_id) DO UPDATE SET
+            `rank` = excluded.`rank`,
+            movement = excluded.movement,
+            points = excluded.points,
+            competitions_played = excluded.competitions_played;
+    """) if sqlite_engine else text("""
         INSERT INTO competitor_rankings (`rank`, movement, points, competitions_played, competitor_id)
         VALUES (:rank, :movement, :points, :competitions_played, :competitor_id)
         ON DUPLICATE KEY UPDATE

@@ -46,7 +46,7 @@ load_dotenv(REPO_ROOT / ".env")
 load_dotenv(CURRENT_DIR / ".env")
 
 API_ENDPOINT = "https://api.sportradar.com/tennis/trial/v3/en/competitions.json"
-DEFAULT_DB_URL = "mysql+pymysql://root:root@localhost:3306/sportradar_tennis"
+DEFAULT_DB_URL = "sqlite:///data/tennis.db"
 
 
 def get_database_engine(db_url: Optional[str] = None) -> Engine:
@@ -84,7 +84,7 @@ def fetch_competitions_data(
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     # Check if a valid API key is present
-    if not key or key == "your_sportradar_api_key_here":
+    if not key or key in ("your_sportradar_api_key_here", "offline_mode"):
         logger.info("No active Sportradar API key found. Attempting to load cached data.")
         return load_cached_raw_data()
 
@@ -243,14 +243,27 @@ def load_competitions_to_db(
     """
     summary = {"categories_processed": len(categories), "competitions_processed": len(competitions)}
 
+    sqlite_engine = engine.dialect.name == "sqlite"
     category_upsert_sql = text("""
         INSERT INTO categories (category_id, category_name)
         VALUES (:category_id, :category_name)
-        ON DUPLICATE KEY UPDATE
-            category_name = VALUES(category_name);
+        ON CONFLICT(category_id) DO UPDATE SET category_name = excluded.category_name;
+    """) if sqlite_engine else text("""
+        INSERT INTO categories (category_id, category_name)
+        VALUES (:category_id, :category_name)
+        ON DUPLICATE KEY UPDATE category_name = VALUES(category_name);
     """)
 
     competition_upsert_sql = text("""
+        INSERT INTO competitions (competition_id, competition_name, parent_id, type, gender, category_id)
+        VALUES (:competition_id, :competition_name, :parent_id, :type, :gender, :category_id)
+        ON CONFLICT(competition_id) DO UPDATE SET
+            competition_name = excluded.competition_name,
+            parent_id = excluded.parent_id,
+            type = excluded.type,
+            gender = excluded.gender,
+            category_id = excluded.category_id;
+    """) if sqlite_engine else text("""
         INSERT INTO competitions (competition_id, competition_name, parent_id, type, gender, category_id)
         VALUES (:competition_id, :competition_name, :parent_id, :type, :gender, :category_id)
         ON DUPLICATE KEY UPDATE

@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 # Configure logging
@@ -56,7 +56,21 @@ except ImportError:
     from etl_rankings import run_rankings_etl  # type: ignore
 
 RATE_LIMIT_SLEEP_SECONDS = float(os.getenv("RATE_LIMIT_SLEEP", "1.5"))
-DEFAULT_DB_URL = "mysql+pymysql://root:root@localhost:3306/sportradar_tennis"
+DEFAULT_DB_URL = "sqlite:///data/tennis.db"
+
+
+def initialize_sqlite_schema(engine: Engine) -> None:
+    """Create the SQLite tables before running any ETL stage."""
+    if engine.dialect.name != "sqlite":
+        return
+    schema_path = REPO_ROOT / "role1_database_and_competitions" / "sqlite_schema.sql"
+    if not schema_path.exists():
+        raise FileNotFoundError(f"SQLite schema not found: {schema_path}")
+    with engine.begin() as conn:
+        for statement in schema_path.read_text(encoding="utf-8").split(";"):
+            statement = statement.strip()
+            if statement:
+                conn.execute(text(statement))
 
 
 def run_pipeline() -> Dict[str, Any]:
@@ -73,6 +87,7 @@ def run_pipeline() -> Dict[str, Any]:
 
     db_url = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
     shared_engine: Engine = create_engine(db_url, echo=False, pool_pre_ping=True)
+    initialize_sqlite_schema(shared_engine)
 
     consolidated_results: Dict[str, Any] = {
         "status": "SUCCESS",

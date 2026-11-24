@@ -44,7 +44,7 @@ load_dotenv(REPO_ROOT / ".env")
 load_dotenv(CURRENT_DIR / ".env")
 
 API_ENDPOINT = "https://api.sportradar.com/tennis/trial/v3/en/complexes.json"
-DEFAULT_DB_URL = "mysql+pymysql://root:root@localhost:3306/sportradar_tennis"
+DEFAULT_DB_URL = "sqlite:///data/tennis.db"
 
 
 def get_database_engine(db_url: Optional[str] = None) -> Engine:
@@ -81,7 +81,7 @@ def fetch_complexes_data(
     key = api_key or os.getenv("SPORTRADAR_API_KEY", "").strip()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    if not key or key == "your_sportradar_api_key_here":
+    if not key or key in ("your_sportradar_api_key_here", "offline_mode"):
         logger.info("No active Sportradar API key found. Attempting to load cached complexes data.")
         return load_cached_raw_data()
 
@@ -225,14 +225,28 @@ def load_complexes_to_db(
     """
     summary = {"complexes_processed": len(complexes), "venues_processed": len(venues)}
 
+    sqlite_engine = engine.dialect.name == "sqlite"
     complex_upsert_sql = text("""
         INSERT INTO complexes (complex_id, complex_name)
         VALUES (:complex_id, :complex_name)
-        ON DUPLICATE KEY UPDATE
-            complex_name = VALUES(complex_name);
+        ON CONFLICT(complex_id) DO UPDATE SET complex_name = excluded.complex_name;
+    """) if sqlite_engine else text("""
+        INSERT INTO complexes (complex_id, complex_name)
+        VALUES (:complex_id, :complex_name)
+        ON DUPLICATE KEY UPDATE complex_name = VALUES(complex_name);
     """)
 
     venue_upsert_sql = text("""
+        INSERT INTO venues (venue_id, venue_name, city_name, country_name, country_code, timezone, complex_id)
+        VALUES (:venue_id, :venue_name, :city_name, :country_name, :country_code, :timezone, :complex_id)
+        ON CONFLICT(venue_id) DO UPDATE SET
+            venue_name = excluded.venue_name,
+            city_name = excluded.city_name,
+            country_name = excluded.country_name,
+            country_code = excluded.country_code,
+            timezone = excluded.timezone,
+            complex_id = excluded.complex_id;
+    """) if sqlite_engine else text("""
         INSERT INTO venues (venue_id, venue_name, city_name, country_name, country_code, timezone, complex_id)
         VALUES (:venue_id, :venue_name, :city_name, :country_name, :country_code, :timezone, :complex_id)
         ON DUPLICATE KEY UPDATE

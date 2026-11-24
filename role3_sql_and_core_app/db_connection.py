@@ -44,18 +44,30 @@ REPO_ROOT = CURRENT_DIR.parent if CURRENT_DIR.name.startswith("role") else CURRE
 load_dotenv(REPO_ROOT / ".env")
 load_dotenv(CURRENT_DIR / ".env")
 
-DEFAULT_DB_URL = "mysql+pymysql://root:root@localhost:3306/sportradar_tennis"
+DEFAULT_DB_URL = "sqlite:///data/tennis.db"
 
 
 def _build_engine(db_url: Optional[str] = None) -> Engine:
     """Internal factory to create a SQLAlchemy engine."""
     connection_string = db_url or os.getenv("DATABASE_URL", DEFAULT_DB_URL)
-    return create_engine(
+    engine = create_engine(
         connection_string,
         pool_pre_ping=True,
         pool_recycle=3600,
         echo=False,
     )
+    if engine.dialect.name == "sqlite":
+        database_path = engine.url.database
+        if database_path and database_path != ":memory:":
+            Path(database_path).parent.mkdir(parents=True, exist_ok=True)
+        schema_path = REPO_ROOT / "role1_database_and_competitions" / "sqlite_schema.sql"
+        if schema_path.exists():
+            with engine.begin() as conn:
+                for statement in schema_path.read_text(encoding="utf-8").split(";"):
+                    statement = statement.strip()
+                    if statement:
+                        conn.execute(text(statement))
+    return engine
 
 
 if HAS_STREAMLIT:
@@ -84,9 +96,16 @@ def test_connection(engine: Optional[Engine] = None) -> Tuple[bool, str]:
             result = conn.execute(text("SELECT 1;")).scalar()
             if result == 1:
                 # Check tables
-                tables_res = conn.execute(text("SHOW TABLES;")).fetchall()
+                if eng.dialect.name == "sqlite":
+                    tables_res = conn.execute(text(
+                        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
+                    )).fetchall()
+                    db_name = "SQLite"
+                else:
+                    tables_res = conn.execute(text("SHOW TABLES;")).fetchall()
+                    db_name = "MySQL"
                 tables = [t[0] for t in tables_res]
-                return True, f"Connected to MySQL. Verified {len(tables)} tables: {', '.join(tables)}"
+                return True, f"Connected to {db_name}. Verified {len(tables)} tables: {', '.join(tables)}"
         return False, "Database responded with unexpected result."
     except Exception as exc:
         logger.error("Database connection check failed: %s", exc)
